@@ -77,12 +77,12 @@ async def notify_missile(source: str, text: str, local_targeted: bool):
     """Send missile launch Pushover alert + optional intel report.
 
     Priority levels:
-      - Local area targeted: emergency (P2) — repeats until acknowledged
-      - Other launches: informational (P0) — normal priority, no bypass
+      - Local area targeted: high (P1) — bypasses quiet hours
+      - Other launches: normal (P0) — informational
     """
     if local_targeted:
         title = f"MISSILE ALERT — {LOCATION_NAME.upper()}"
-        priority = 2
+        priority = 1  # high — bypasses quiet hours but no repeat
         sound = "alien"
     else:
         title = "Missile Launch Reported"
