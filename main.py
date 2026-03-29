@@ -9,6 +9,7 @@ Sources:
   1. Telegram channels (EN/HE) — journalist missile launch reports
   2. Oref Alert Proxy — volumetric nationwide alert thresholds
   3. Groq OSINT — immediate intel report on local-area missile events
+  4. OpenRouter sitrep — dual-model synthesized situation report on local events
 
 Credit: Emanuel (Mannie) Fabian, Times of Israel military correspondent
         https://www.timesofisrael.com/writers/emanuel-fabian/
@@ -23,6 +24,7 @@ from classifiers import classify_en, classify_he
 from intel import generate_intel_report
 from notifier import send_pushover
 from oref_monitor import oref_poll_loop
+from sitrep import generate_sitrep
 from telegram_monitor import ChannelMessage, ChannelPoller
 
 logging.basicConfig(
@@ -66,6 +68,8 @@ OREF_AREA_THRESHOLDS = sorted(
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+
 
 # ── Notification helpers ────────────────────────────────────────────────────
 
@@ -88,8 +92,9 @@ async def notify_missile(source: str, text: str, local_targeted: bool):
     body = f"<b>Source: {source}</b>\n\n{text}"
     await send_pushover(PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY, title, body, priority, sound)
 
-    # Trigger Groq intel report for local-area events only
+    # Trigger intel + sitrep for local-area events only
     if local_targeted:
+        # Fast intel via Groq (immediate, ~5s)
         report = await generate_intel_report(
             text, source, LOCATION_NAME, GROQ_API_KEY, GROQ_MODEL,
         )
@@ -98,6 +103,19 @@ async def notify_missile(source: str, text: str, local_targeted: bool):
                 PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY,
                 f"INTEL REPORT — {LOCATION_NAME} Missile Event",
                 report,
+                priority=0,
+                sound="pushover",
+            )
+
+        # Dual-model sitrep via OpenRouter (slower, ~15-30s)
+        sitrep = await generate_sitrep(
+            text, source, LOCATION_NAME, OPENROUTER_API_KEY,
+        )
+        if sitrep:
+            await send_pushover(
+                PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY,
+                f"SITREP — {LOCATION_NAME}",
+                sitrep,
                 priority=0,
                 sound="pushover",
             )
@@ -186,6 +204,11 @@ async def run():
         log.info("Groq OSINT intel: enabled (model=%s)", GROQ_MODEL)
     else:
         log.info("Groq OSINT intel: disabled (no GROQ_API_KEY)")
+
+    if OPENROUTER_API_KEY:
+        log.info("OpenRouter sitrep: enabled")
+    else:
+        log.info("OpenRouter sitrep: disabled (no OPENROUTER_API_KEY)")
 
     if not tasks:
         log.error("No alert sources enabled. Exiting.")
