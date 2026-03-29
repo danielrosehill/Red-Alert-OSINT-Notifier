@@ -11,6 +11,8 @@ import time
 
 import httpx
 
+from news_context import fetch_headlines
+
 log = logging.getLogger("osint-notifier")
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -47,6 +49,9 @@ async def generate_intel_report(
 
     _last_intel_time = time.time()
 
+    # Fetch live news headlines for context
+    news = await fetch_headlines()
+
     system_prompt = (
         f"You are a concise military intelligence analyst providing immediate "
         f"situational awareness after a missile alert targeting {location_name}, Israel. "
@@ -58,6 +63,10 @@ async def generate_intel_report(
     user_prompt = (
         f"A missile launch targeting {location_name} has just been reported by {source}.\n\n"
         f"Original report:\n{trigger_message}\n\n"
+    )
+    if news:
+        user_prompt += f"Recent news headlines for context:\n{news}\n\n"
+    user_prompt += (
         "Based on the latest available information, provide:\n"
         "- Origin / source of fire (which country or group launched)\n"
         "- Number and type of missiles (ballistic, cruise, etc.)\n"

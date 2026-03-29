@@ -13,6 +13,8 @@ import os
 
 import httpx
 
+from news_context import fetch_headlines
+
 log = logging.getLogger("osint-notifier")
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -71,6 +73,9 @@ async def generate_sitrep(
         log.debug("Sitrep skipped: no OPENROUTER_API_KEY")
         return None
 
+    # Fetch live news headlines for context
+    news = await fetch_headlines()
+
     system_prompt = (
         "You are a military-style situation report (sitrep) generator for Israel's "
         "Home Front Command alert system. Generate a concise, professional sitrep "
@@ -82,6 +87,10 @@ async def generate_sitrep(
     user_prompt = (
         f"A missile launch targeting {location_name} has been reported by {source}.\n\n"
         f"Report:\n{trigger_message}\n\n"
+    )
+    if news:
+        user_prompt += f"Recent news headlines for context:\n{news}\n\n"
+    user_prompt += (
         "Generate a situation report covering the current threat, "
         "likely origin, scale, and recommended posture."
     )
