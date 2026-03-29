@@ -23,7 +23,7 @@ Unified notification and OSINT intelligence module for Israel Red Alert monitori
    - English: `ballistic missile` + `detected`/`identified`/`launch`/`sirens`, then checks for your `LOCAL_KEYWORDS_EN`
    - Hebrew: `שיגור` + `טיל בליסטי`/`טילים`/`איראן`/`אזעקות`, then checks for your `LOCAL_KEYWORDS_HE`
 3. **Pushover alerts** fire with priority levels:
-   - **Emergency (P2)** — your location is targeted
+   - **High (P1)** — your location is targeted (bypasses quiet hours)
    - **Normal (P0)** — missile launch detected elsewhere
    - **Lowest (P-1)** — volumetric threshold crossings
 4. When your location is targeted, two AI follow-ups fire automatically:
