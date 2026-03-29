@@ -1,6 +1,6 @@
 # Red Alert OSINT Notifier
 
-Unified notification and OSINT intelligence module for Israel Red Alert monitoring. Monitors multiple sources for missile launch alerts and nationwide alert thresholds, delivers Pushover notifications, and generates AI-powered intelligence reports for Jerusalem-targeted events.
+Unified notification and OSINT intelligence module for Israel Red Alert monitoring. Monitors multiple sources for missile launch alerts and nationwide alert thresholds, delivers Pushover notifications, and generates AI-powered intelligence reports when your configured location is targeted.
 
 ## Alert Sources
 
@@ -9,25 +9,45 @@ Unified notification and OSINT intelligence module for Israel Red Alert monitori
 | `@manniefabian` | Telegram (EN) | Emanuel (Mannie) Fabian, [Times of Israel](https://www.timesofisrael.com/writers/emanuel-fabian/) military correspondent — reports ballistic missile launches often minutes before official sirens |
 | `@news0404il` | Telegram (HE) | Hebrew news channel — שיגור (launch) reports with context keywords |
 | Oref Alert Proxy | API | Volumetric nationwide alert thresholds (50, 100, 200... 1000 simultaneous areas) |
-| Groq OSINT | AI/LLM | Immediate intelligence report on Jerusalem missile events — origin, munitions, scale (rate-limited to 1 per 10 min) |
+| Groq OSINT | AI/LLM | Immediate intelligence report when your location is targeted (rate-limited to 1 per 10 min) |
 
 ## How It Works
 
 1. **Telegram monitors** poll public channel web views every 15s for new messages
-2. **Keyword classifiers** detect missile launches and Jerusalem targeting:
-   - English: `ballistic missile` + `detected`/`identified`/`launch`/`sirens`
-   - Hebrew: `שיגור` + `טיל בליסטי`/`טילים`/`איראן`/`אזעקות`
+2. **Keyword classifiers** detect missile launches and local targeting:
+   - English: `ballistic missile` + `detected`/`identified`/`launch`/`sirens`, then checks for your `LOCAL_KEYWORDS_EN`
+   - Hebrew: `שיגור` + `טיל בליסטי`/`טילים`/`איראן`/`אזעקות`, then checks for your `LOCAL_KEYWORDS_HE`
 3. **Pushover alerts** fire with priority levels:
-   - Emergency (P2) for Jerusalem-targeted missiles
-   - High (P1) for other missile launches
-   - Normal (P0) for volumetric threshold crossings
-4. **Groq intel report** auto-generates on Jerusalem events with a 10-minute cooldown
+   - **Emergency (P2)** — your location is targeted
+   - **High (P1)** — missile launch detected elsewhere
+   - **Normal (P0)** — volumetric threshold crossings
+4. **Groq intel report** auto-generates when your location is targeted (10-min cooldown)
+
+## Location Configuration
+
+Set your location via environment variables. The defaults are for Jerusalem:
+
+```env
+LOCATION_NAME=Jerusalem
+LOCAL_KEYWORDS_EN=jerusalem,central israel
+LOCAL_KEYWORDS_HE=ירושלים,מרכז הארץ
+```
+
+**Examples for other locations:**
+
+| Location | `LOCAL_KEYWORDS_EN` | `LOCAL_KEYWORDS_HE` |
+|----------|-------------------|-------------------|
+| Tel Aviv | `tel aviv,gush dan,central israel` | `תל אביב,גוש דן,מרכז הארץ` |
+| Haifa | `haifa,haifa bay,northern israel` | `חיפה,מפרץ חיפה,צפון הארץ` |
+| Beer Sheva | `beer sheva,beersheba,negev,southern israel` | `באר שבע,נגב,דרום הארץ` |
+
+When any keyword from your list appears in a missile launch report, the alert is elevated to emergency priority and a Groq intelligence report is triggered.
 
 ## Deployment
 
 ```bash
 cp .env.example .env
-# Edit .env with your Pushover credentials and optional Groq key
+# Edit .env with your credentials and location
 docker compose up -d
 ```
 
@@ -60,7 +80,7 @@ Edit the system/user prompts in `intel.py` to customise what the AI reports on.
 
 ## Credits
 
-- **Emanuel (Mannie) Fabian** — Times of Israel military correspondent whose Telegram reporting is a key source for early missile launch alerts. [Profile](https://www.timesofisrael.com/writers/emanuel-fabian/)
+- **Emanuel (Mannie) Fabian** — Times of Israel military correspondent whose Telegram reporting is a key data source for early missile launch alerts. [Profile](https://www.timesofisrael.com/writers/emanuel-fabian/)
 
 ## License
 

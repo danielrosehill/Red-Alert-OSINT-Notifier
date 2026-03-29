@@ -3,15 +3,15 @@
 
 Monitors multiple sources for missile launch alerts and volumetric
 nationwide alert thresholds, delivers Pushover notifications, and
-generates Groq-powered intelligence reports for Jerusalem events.
+generates Groq-powered intelligence reports for local-area events.
 
 Sources:
-  1. Telegram @manniefabian (English) — ballistic missile launch reports
-     Credit: Emanuel (Mannie) Fabian, Times of Israel military correspondent
-     https://www.timesofisrael.com/writers/emanuel-fabian/
-  2. Telegram @news0404il (Hebrew) — שיגור (launch) reports
-  3. Oref Alert Proxy — volumetric nationwide alert thresholds
-  4. Groq OSINT — immediate intel report on Jerusalem missile events
+  1. Telegram channels (EN/HE) — journalist missile launch reports
+  2. Oref Alert Proxy — volumetric nationwide alert thresholds
+  3. Groq OSINT — immediate intel report on local-area missile events
+
+Credit: Emanuel (Mannie) Fabian, Times of Israel military correspondent
+        https://www.timesofisrael.com/writers/emanuel-fabian/
 """
 
 import asyncio
@@ -41,6 +41,19 @@ TELEGRAM_CHANNEL_EN = os.environ.get("TELEGRAM_CHANNEL_EN", "manniefabian")
 TELEGRAM_CHANNEL_HE = os.environ.get("TELEGRAM_CHANNEL_HE", "news0404il")
 TELEGRAM_POLL_INTERVAL = int(os.environ.get("TELEGRAM_POLL_INTERVAL", "15"))
 
+# Location targeting — set to your area
+LOCATION_NAME = os.environ.get("LOCATION_NAME", "Jerusalem")
+LOCAL_KEYWORDS_EN = [
+    kw.strip() for kw in
+    os.environ.get("LOCAL_KEYWORDS_EN", "jerusalem,central israel").split(",")
+    if kw.strip()
+]
+LOCAL_KEYWORDS_HE = [
+    kw.strip() for kw in
+    os.environ.get("LOCAL_KEYWORDS_HE", "ירושלים,מרכז הארץ").split(",")
+    if kw.strip()
+]
+
 OREF_ENABLED = os.environ.get("OREF_ENABLED", "true").lower() in ("true", "1", "yes")
 OREF_PROXY_URL = os.environ.get("OREF_PROXY_URL", "http://host.docker.internal:8764/api/alerts")
 OREF_POLL_INTERVAL = int(os.environ.get("OREF_POLL_INTERVAL", "3"))
@@ -56,10 +69,10 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # ── Notification helpers ────────────────────────────────────────────────────
 
-async def notify_missile(source: str, text: str, jerusalem: bool):
+async def notify_missile(source: str, text: str, local_targeted: bool):
     """Send missile launch Pushover alert + optional intel report."""
-    if jerusalem:
-        title = "MISSILE ALERT — JERUSALEM"
+    if local_targeted:
+        title = f"MISSILE ALERT — {LOCATION_NAME.upper()}"
         priority = 2
         sound = "alien"
     else:
@@ -70,13 +83,15 @@ async def notify_missile(source: str, text: str, jerusalem: bool):
     body = f"<b>Source: {source}</b>\n\n{text}"
     await send_pushover(PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY, title, body, priority, sound)
 
-    # Trigger Groq intel report for Jerusalem events
-    if jerusalem:
-        report = await generate_intel_report(text, source, GROQ_API_KEY, GROQ_MODEL)
+    # Trigger Groq intel report for local-area events
+    if local_targeted:
+        report = await generate_intel_report(
+            text, source, LOCATION_NAME, GROQ_API_KEY, GROQ_MODEL,
+        )
         if report:
             await send_pushover(
                 PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY,
-                "INTEL REPORT — Jerusalem Missile Event",
+                f"INTEL REPORT — {LOCATION_NAME} Missile Event",
                 report,
                 priority=1,
                 sound="pushover",
@@ -100,20 +115,24 @@ async def handle_en(msg: ChannelMessage):
     if len(msg.text.strip()) < 10:
         return
     log.info("EN [%s]: %s", msg.msg_id, msg.text[:120])
-    result = classify_en(msg.text)
+    result = classify_en(msg.text, LOCAL_KEYWORDS_EN)
     log.info("EN classification: %s", result)
     if result["missile_launch"]:
-        await notify_missile("Mannie Fabian (@manniefabian)", msg.text, result["jerusalem_targeted"])
+        await notify_missile(
+            f"Mannie Fabian (@{TELEGRAM_CHANNEL_EN})", msg.text, result["local_targeted"],
+        )
 
 
 async def handle_he(msg: ChannelMessage):
     if len(msg.text.strip()) < 10:
         return
     log.info("HE [%s]: %s", msg.msg_id, msg.text[:120])
-    result = classify_he(msg.text)
+    result = classify_he(msg.text, LOCAL_KEYWORDS_HE)
     log.info("HE classification: %s", result)
     if result["missile_launch"]:
-        await notify_missile("חדשות 0404 (@news0404il)", msg.text, result["jerusalem_targeted"])
+        await notify_missile(
+            f"חדשות 0404 (@{TELEGRAM_CHANNEL_HE})", msg.text, result["local_targeted"],
+        )
 
 
 # ── Poll loops ──────────────────────────────────────────────────────────────
@@ -134,6 +153,7 @@ async def telegram_poll_loop(poller: ChannelPoller, handler):
 
 async def run():
     log.info("Starting Red Alert OSINT Notifier")
+    log.info("Location: %s (EN: %s, HE: %s)", LOCATION_NAME, LOCAL_KEYWORDS_EN, LOCAL_KEYWORDS_HE)
 
     if not PUSHOVER_APP_TOKEN or not PUSHOVER_GROUP_KEY:
         log.error("PUSHOVER_APP_TOKEN and PUSHOVER_GROUP_KEY are required. Exiting.")

@@ -1,8 +1,8 @@
-"""Groq-powered immediate intelligence report for Jerusalem missile events.
+"""Groq-powered immediate intelligence report for local missile events.
 
-When a Jerusalem-targeted missile launch is detected, queries Groq for
-the latest reports on origin, number of missiles, and source of fire.
-Rate-limited to one report per configurable cooldown (default 10 min).
+When a missile launch targeting the user's configured location is detected,
+queries Groq for latest reports on origin, number of missiles, and source
+of fire. Rate-limited to one report per configurable cooldown (default 10 min).
 """
 
 import logging
@@ -26,6 +26,7 @@ def can_run_intel() -> bool:
 async def generate_intel_report(
     trigger_message: str,
     source: str,
+    location_name: str,
     groq_api_key: str,
     groq_model: str,
 ) -> str | None:
@@ -47,15 +48,15 @@ async def generate_intel_report(
     _last_intel_time = time.time()
 
     system_prompt = (
-        "You are a concise military intelligence analyst providing immediate "
-        "situational awareness after a missile alert targeting Jerusalem, Israel. "
-        "Your output will be sent as a push notification, so keep it under "
-        "250 words. Use plain text. Be factual. "
-        "Structure: ORIGIN, MUNITIONS, SCALE, ASSESSMENT."
+        f"You are a concise military intelligence analyst providing immediate "
+        f"situational awareness after a missile alert targeting {location_name}, Israel. "
+        f"Your output will be sent as a push notification, so keep it under "
+        f"250 words. Use plain text. Be factual. "
+        f"Structure: ORIGIN, MUNITIONS, SCALE, ASSESSMENT."
     )
 
     user_prompt = (
-        f"A missile launch targeting Jerusalem has just been reported by {source}.\n\n"
+        f"A missile launch targeting {location_name} has just been reported by {source}.\n\n"
         f"Original report:\n{trigger_message}\n\n"
         "Based on the latest available information, provide:\n"
         "- Origin / source of fire (which country or group launched)\n"

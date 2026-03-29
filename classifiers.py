@@ -2,14 +2,19 @@
 
 Each classifier returns a dict:
   - missile_launch: bool — active launch detected
-  - jerusalem_targeted: bool — Jerusalem / central Israel mentioned as target
+  - local_targeted: bool — user's configured location mentioned as target
 """
 
 import re
 
 
-def classify_en(message_text: str) -> dict:
+def classify_en(message_text: str, local_keywords_en: list[str]) -> dict:
     """Classify English channel message (e.g. @manniefabian).
+
+    Args:
+        message_text: Raw message text.
+        local_keywords_en: English keywords for local area targeting
+            (e.g. ["jerusalem", "central israel"]).
 
     Credit: Mannie Fabian, Times of Israel military correspondent
     https://www.timesofisrael.com/writers/emanuel-fabian/
@@ -34,18 +39,22 @@ def classify_en(message_text: str) -> dict:
     if is_aftermath and "sirens" not in text:
         missile_launch = False
 
-    jerusalem_targeted = False
-    if missile_launch:
-        jerusalem_targeted = "central israel" in text or "jerusalem" in text
+    local_targeted = False
+    if missile_launch and local_keywords_en:
+        local_targeted = any(kw.lower() in text for kw in local_keywords_en)
 
-    return {"missile_launch": missile_launch, "jerusalem_targeted": jerusalem_targeted}
+    return {"missile_launch": missile_launch, "local_targeted": local_targeted}
 
 
-def classify_he(message_text: str) -> dict:
+def classify_he(message_text: str, local_keywords_he: list[str]) -> dict:
     """Classify Hebrew channel message (e.g. @news0404il).
 
-    Looks for שיגור (launch) as the primary trigger
-    and ירושלים (Jerusalem) for location targeting.
+    Args:
+        message_text: Raw message text.
+        local_keywords_he: Hebrew keywords for local area targeting
+            (e.g. ["ירושלים", "מרכז הארץ"]).
+
+    Looks for שיגור (launch) as the primary trigger.
     """
     text = message_text
 
@@ -63,8 +72,8 @@ def classify_he(message_text: str) -> dict:
     if is_aftermath:
         missile_launch = False
 
-    jerusalem_targeted = False
-    if missile_launch:
-        jerusalem_targeted = "ירושלים" in text or "מרכז הארץ" in text
+    local_targeted = False
+    if missile_launch and local_keywords_he:
+        local_targeted = any(kw in text for kw in local_keywords_he)
 
-    return {"missile_launch": missile_launch, "jerusalem_targeted": jerusalem_targeted}
+    return {"missile_launch": missile_launch, "local_targeted": local_targeted}
