@@ -1,8 +1,9 @@
-"""Groq-powered immediate intelligence report for local missile events.
+"""Immediate intelligence report for local missile events via OpenRouter.
 
 When a missile launch targeting the user's configured location is detected,
-queries Groq for latest reports on origin, number of missiles, and source
-of fire. Rate-limited to one report per configurable cooldown (default 10 min).
+queries a fast model via OpenRouter for latest reports on origin, number
+of missiles, and source of fire. Rate-limited to one report per configurable
+cooldown (default 10 min).
 """
 
 import logging
@@ -15,8 +16,9 @@ from news_context import fetch_headlines
 
 log = logging.getLogger("osint-notifier")
 
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 INTEL_COOLDOWN = int(os.environ.get("INTEL_COOLDOWN", "600"))
+INTEL_MODEL = os.environ.get("INTEL_MODEL", "meta-llama/llama-4-scout")
 
 _last_intel_time: float = 0
 
@@ -29,17 +31,16 @@ async def generate_intel_report(
     trigger_message: str,
     source: str,
     location_name: str,
-    groq_api_key: str,
-    groq_model: str,
+    openrouter_api_key: str,
 ) -> str | None:
-    """Query Groq for an immediate intelligence summary.
+    """Query OpenRouter for an immediate intelligence summary.
 
     Returns the report text, or None if cooldown active / API unavailable.
     """
     global _last_intel_time
 
-    if not groq_api_key:
-        log.debug("Intel skipped: no GROQ_API_KEY")
+    if not openrouter_api_key:
+        log.debug("Intel skipped: no OPENROUTER_API_KEY")
         return None
 
     if not can_run_intel():
@@ -79,17 +80,19 @@ async def generate_intel_report(
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.post(
-                GROQ_URL,
+                OPENROUTER_URL,
                 json={
-                    "model": groq_model,
+                    "model": INTEL_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
                 },
                 headers={
-                    "Authorization": f"Bearer {groq_api_key}",
+                    "Authorization": f"Bearer {openrouter_api_key}",
                     "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/danielrosehill/Red-Alert-OSINT-Notifier",
+                    "X-Title": "Red Alert OSINT Notifier",
                 },
                 timeout=30,
             )
@@ -100,8 +103,8 @@ async def generate_intel_report(
                 if report:
                     log.info("Intel report generated (%d chars)", len(report))
                     return report
-            log.warning("Groq empty response: %s", data.get("error", data))
+            log.warning("OpenRouter empty response: %s", data.get("error", data))
         except Exception as exc:
-            log.error("Groq intel failed: %s", exc)
+            log.error("Intel report failed: %s", exc)
 
     return None
