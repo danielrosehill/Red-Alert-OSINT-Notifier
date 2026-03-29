@@ -70,20 +70,25 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
 # ── Notification helpers ────────────────────────────────────────────────────
 
 async def notify_missile(source: str, text: str, local_targeted: bool):
-    """Send missile launch Pushover alert + optional intel report."""
+    """Send missile launch Pushover alert + optional intel report.
+
+    Priority levels:
+      - Local area targeted: emergency (P2) — repeats until acknowledged
+      - Other launches: informational (P0) — normal priority, no bypass
+    """
     if local_targeted:
         title = f"MISSILE ALERT — {LOCATION_NAME.upper()}"
         priority = 2
         sound = "alien"
     else:
-        title = "MISSILE LAUNCH DETECTED"
-        priority = 1
-        sound = "siren"
+        title = "Missile Launch Reported"
+        priority = 0
+        sound = "pushover"
 
     body = f"<b>Source: {source}</b>\n\n{text}"
     await send_pushover(PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY, title, body, priority, sound)
 
-    # Trigger Groq intel report for local-area events
+    # Trigger Groq intel report for local-area events only
     if local_targeted:
         report = await generate_intel_report(
             text, source, LOCATION_NAME, GROQ_API_KEY, GROQ_MODEL,
@@ -93,19 +98,19 @@ async def notify_missile(source: str, text: str, local_targeted: bool):
                 PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY,
                 f"INTEL REPORT — {LOCATION_NAME} Missile Event",
                 report,
-                priority=1,
+                priority=0,
                 sound="pushover",
             )
 
 
 async def notify_volumetric(active_count: int, threshold: int):
-    """Send Oref volumetric threshold Pushover alert."""
+    """Send Oref volumetric threshold Pushover alert (informational)."""
     await send_pushover(
         PUSHOVER_APP_TOKEN, PUSHOVER_GROUP_KEY,
         f"Red Alert: {active_count} Areas Active",
         f"Nationwide alert count has crossed {threshold} areas across Israel.",
-        priority=0,
-        sound="pushover",
+        priority=-1,
+        sound="none",
     )
 
 
