@@ -30,9 +30,12 @@ def count_active_areas(alerts: list[dict]) -> int:
             continue
         cat = normalize_category(alert)
         if cat in ACTIVE_CATEGORIES:
-            area = alert.get("data", "")
-            if area:
-                active_areas.add(area)
+            data = alert.get("data", [])
+            # data can be a list of area names or a single string
+            if isinstance(data, list):
+                active_areas.update(a for a in data if a)
+            elif data:
+                active_areas.add(data)
     return len(active_areas)
 
 
@@ -63,7 +66,12 @@ async def oref_poll_loop(
             try:
                 resp = await client.get(proxy_url, timeout=10)
                 resp.raise_for_status()
-                alerts: list[dict] = resp.json()
+                raw = resp.json()
+                # Handle both flat list and {"alerts": [...]} wrapper
+                if isinstance(raw, dict):
+                    alerts: list[dict] = raw.get("alerts", [])
+                else:
+                    alerts = raw
             except Exception as exc:
                 log.warning("Oref proxy fetch failed: %s", exc)
                 await asyncio.sleep(poll_interval)
